@@ -3,9 +3,25 @@ let systemId = 1; // ID incremental para cada sistema de fila criado
 function createResultComponent(simulation) {
     const resultsContainer = document.getElementById('resultsContainer');
 
+    // Calcular estatísticas
+    const stats = calculateStatistics(simulation);
+
+    // Determinar a cor do sistema com base em U
+    const utilization = stats.U; // U é a utilização
+    let cardClass = 'bg-light'; // Cor padrão
+    if (utilization < 0.60) {
+        cardClass = 'bg-success text-white'; // Verde claro
+    } else if (utilization >= 0.60 && utilization < 0.75) {
+        cardClass = 'bg-success'; // Verde mais vivo
+    } else if (utilization >= 0.75 && utilization <= 1.00) {
+        cardClass = 'bg-success bg-opacity-75'; // Verde ideal
+    } else {
+        cardClass = 'bg-danger'; // Vermelho (acima de 100%)
+    }
+
     // Criar o componente principal do sistema
     const systemDiv = document.createElement('div');
-    systemDiv.className = 'card mb-3';
+    systemDiv.className = `card mb-3 ${cardClass}`;
 
     const systemHeader = document.createElement('div');
     systemHeader.className = 'card-header';
@@ -24,7 +40,6 @@ function createResultComponent(simulation) {
     systemDetails.className = 'collapse';
     systemDetails.id = `systemDetails${systemId}`;
 
-    const stats = calculateStatistics(simulation); // Obter as estatísticas
     const statsTable = generateStatsTable(stats); // Gerar tabela de estatísticas
     const packetsTable = generatePacketsTable(simulation.P); // Gerar tabela de pacotes
 
@@ -41,6 +56,9 @@ function createResultComponent(simulation) {
     resultsContainer.appendChild(systemDiv);
 
     systemId++; // Incrementar ID para o próximo sistema
+
+    // Limpar os campos de entrada
+    clearInputFields();
 }
 
 function calculateStatistics(simulation) {
@@ -127,6 +145,17 @@ function generatePacketsTable(packets) {
             ${tableRows}
         </table>
     `;
+}
+
+function clearInputFields() {
+    // Limpar os campos de "Definir Pacote"
+    document.getElementById('packagesPerMonth').value = '';
+    document.getElementById('packageSize').value = '';
+
+    // Limpar os campos de "Definir Servidor"
+    document.getElementById('serverType').value = 'cpu';
+    document.getElementById('serverParameters').innerHTML = '';
+    document.getElementById('muResult').classList.add('d-none');
 }
 
 function runSimulation() {
