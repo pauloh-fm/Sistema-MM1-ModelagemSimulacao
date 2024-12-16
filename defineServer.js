@@ -45,9 +45,8 @@ document.getElementById('calculateMu').addEventListener('click', () => {
     } else if (serverType === 'ram') {
         const frequencyGHz = parseFloat(document.getElementById('frequency').value) || 0;
         const bandwidth = parseFloat(document.getElementById('bandwidth').value) || 0;
-
-        const frequencyHz = frequencyGHz * 1e9; // Convertendo GHz para Hz
-        processingRate = (frequencyHz * bandwidth) / 8; // Convertendo para bits/s
+        console.log("ram",frequencyGHz, bandwidth);
+        processingRate = (frequencyGHz * bandwidth) / 8; // Convertendo para bits/s
     }
 
     if (processingRate > 0) {
