@@ -1,0 +1,18 @@
+body {
+    background-color: #f5fffa;
+}
+
+.icon {
+    width: 24px;
+    height: 24px;
+    margin-right: 8px;
+    vertical-align: middle;
+}
+
+.d-none {
+    display: none !important;
+}
+
+.container {
+    max-width: 800px;
+}
