@@ -3,16 +3,21 @@ body {
 }
 
 .icon {
-    width: 24px;
-    height: 24px;
-    margin-right: 8px;
-    vertical-align: middle;
+    width: 20px;
+    margin-right: 5px;
 }
 
-.d-none {
-    display: none !important;
+#lambdaResult p {
+    font-size: 1.1rem;
+    margin: 0.5rem 0;
 }
 
-.container {
-    max-width: 800px;
+#lambdaResult strong {
+    color: #007bff;
+}
+
+.card {
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    margin-top: 1rem;
 }
