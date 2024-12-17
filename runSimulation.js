@@ -86,18 +86,28 @@ function generateRepairButton(id, lambda, mu) {
 }
 
 // Ajusta a frequência para U = 75%
-function adjustTo75(id, lambda, mu) {
-    const newMu = (lambda / 0.75).toFixed(5); // Cálculo para U = 0.75
+function adjustTo75(id, lambda) {
+    const targetU = 0.75; // Utilização desejada
+    let newMu = lambda / targetU; // Cálculo inicial para μ
+    let safeMargin = 1.0001; // Margem de segurança para garantir U <= 0.75
+
     const system = simulations[id];
-    system.serverDetails.parameters['Frequência Ajustada (μ)'] = newMu;
 
-    // Cria um novo sistema com os valores ajustados
-    const newSimulation = new clSF();
-    newSimulation.Iniciar(lambda, parseFloat(newMu));
-    newSimulation.Simular(5000);
+    // Iterar até garantir que U <= 0.75
+    let adjustedSimulation, newStats;
+    do {
+        newMu = newMu * safeMargin; // Aumenta μ com margem segura
+        adjustedSimulation = new clSF();
+        adjustedSimulation.Iniciar(lambda, parseFloat(newMu.toFixed(5)));
+        adjustedSimulation.Simular(5000);
+        newStats = adjustedSimulation.calculateStatistics();
+    } while (newStats.U > targetU);
 
-    const newStats = newSimulation.calculateStatistics();
-    createResultComponent(newSimulation, system.serverDetails, newStats);
+    // Atualizar informações do servidor
+    system.serverDetails.parameters['μ Ajustado'] = newMu.toFixed(5);
+
+    // Criar novo sistema com ajuste
+    createResultComponent(adjustedSimulation, system.serverDetails, newStats);
 }
 
 // Gera a tabela de estatísticas
