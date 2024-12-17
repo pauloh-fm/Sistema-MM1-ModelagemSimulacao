@@ -1,6 +1,7 @@
 let systemId = 1; // ID incremental para cada sistema de fila criado
+const pageSize = 100; // Tamanho da página na tabela de pacotes
 
-function createResultComponent(simulation) {
+function createResultComponent(simulation, serverDetails) {
     const resultsContainer = document.getElementById('resultsContainer');
 
     // Calcular estatísticas
@@ -13,7 +14,7 @@ function createResultComponent(simulation) {
         cardClass = 'bg-success text-white'; // Verde claro
     } else if (utilization >= 0.60 && utilization < 0.75) {
         cardClass = 'bg-success'; // Verde mais vivo
-    } else if (utilization >= 0.75 && utilization <= 1.00) {
+    } else if (utilization == 0.75) {
         cardClass = 'bg-success bg-opacity-75'; // Verde ideal
     } else {
         cardClass = 'bg-danger'; // Vermelho (acima de 100%)
@@ -41,19 +42,28 @@ function createResultComponent(simulation) {
     systemDetails.id = `systemDetails${systemId}`;
 
     const statsTable = generateStatsTable(stats); // Gerar tabela de estatísticas
-    const packetsTable = generatePacketsTable(simulation.P); // Gerar tabela de pacotes
+    const serverInfo = generateServerInfo(serverDetails); // Informações do servidor
+    const packetsTable = generatePacketsTable(simulation.P); // Gerar tabela de pacotes com paginação
 
     systemDetails.innerHTML = `
         <div class="card-body">
             <h6>Indicadores de Desempenho</h6>
             ${statsTable}
+            <h6 class="mt-4">Informações do Servidor</h6>
+            ${serverInfo}
             <h6 class="mt-4">Pacotes</h6>
-            ${packetsTable}
+            <div id="packetsTable${systemId}">${packetsTable}</div>
+            <nav>
+                <ul class="pagination justify-content-center" id="pagination${systemId}"></ul>
+            </nav>
         </div>
     `;
 
     systemDiv.appendChild(systemDetails);
     resultsContainer.appendChild(systemDiv);
+
+    // Paginação da tabela de pacotes
+    setupPagination(simulation.P, systemId);
 
     systemId++; // Incrementar ID para o próximo sistema
 
@@ -61,61 +71,22 @@ function createResultComponent(simulation) {
     clearInputFields();
 }
 
-function calculateStatistics(simulation) {
-    const stats = {
-        lambda: simulation.lambda,
-        mu: simulation.mu,
-        N: simulation.P.length,
-        T: 0,
-        U: 0,
-        E: [0, 0, 0],
-        D: [0, 0, 0],
-    };
-
-    const N = simulation.P.length;
-    const Sx = [0, 0, 0];
-    const Sxx = [0, 0, 0];
-
-    for (let p = 0; p < N; p++) {
-        const ts = simulation.P[p].sps - simulation.P[p].eps;
-        const tsf = simulation.P[p].sps - simulation.P[p].cpf;
-        const nf = simulation.P[p].nf;
-
-        Sx[0] += ts;
-        Sxx[0] += ts * ts;
-        Sx[1] += tsf;
-        Sxx[1] += tsf * tsf;
-        Sx[2] += nf;
-        Sxx[2] += nf * nf;
-    }
-
-    stats.T = simulation.P[N - 1].sps - simulation.P[0].eps;
-    stats.U = Sx[0] / stats.T;
-    for (let i = 0; i < 3; i++) {
-        stats.E[i] = Sx[i] / N;
-        stats.D[i] = Math.sqrt(Sxx[i] / N - stats.E[i] * stats.E[i]);
-    }
-
-    return stats;
-}
-
-function generateStatsTable(stats) {
-    return `
+function generateServerInfo(details) {
+    let info = `
         <table class="table table-bordered">
-            <tr><th>λ</th><td>${stats.lambda.toFixed(5)} pacotes/segundo</td></tr>
-            <tr><th>μ</th><td>${stats.mu.toFixed(5)} pacotes/segundo</td></tr>
-            <tr><th>N</th><td>${stats.N}</td></tr>
-            <tr><th>T</th><td>${stats.T.toFixed(5)} segundos</td></tr>
-            <tr><th>E[tsf]</th><td>${stats.E[1].toFixed(5)} segundos</td></tr>
-            <tr><th>E[nf]</th><td>${stats.E[2].toFixed(5)}</td></tr>
-            <tr><th>D[tsf]</th><td>${stats.D[1].toFixed(5)}</td></tr>
-            <tr><th>D[nf]</th><td>${stats.D[2].toFixed(5)}</td></tr>
-            <tr><th>U</th><td>${stats.U.toFixed(5)}</td></tr>
-        </table>
+            <tr><th>Tipo de Servidor</th><td>${details.type}</td></tr>
     `;
+
+    for (const [key, value] of Object.entries(details.parameters)) {
+        info += `<tr><th>${key}</th><td>${value}</td></tr>`;
+    }
+
+    info += `</table>`;
+    return info;
 }
 
-function generatePacketsTable(packets) {
+function generatePacketsTable(packets, start = 0) {
+    const end = Math.min(start + pageSize, packets.length);
     let tableRows = `
         <tr>
             <th>#</th>
@@ -127,42 +98,63 @@ function generatePacketsTable(packets) {
         </tr>
     `;
 
-    packets.forEach((packet, index) => {
+    for (let i = start; i < end; i++) {
         tableRows += `
             <tr>
-                <td>${index + 1}</td>
-                <td>${packet.ic.toFixed(5)}</td>
-                <td>${packet.cpf.toFixed(5)}</td>
-                <td>${packet.eps.toFixed(5)}</td>
-                <td>${packet.sps.toFixed(5)}</td>
-                <td>${packet.nf}</td>
+                <td>${i + 1}</td>
+                <td>${packets[i].ic.toFixed(5)}</td>
+                <td>${packets[i].cpf.toFixed(5)}</td>
+                <td>${packets[i].eps.toFixed(5)}</td>
+                <td>${packets[i].sps.toFixed(5)}</td>
+                <td>${packets[i].nf}</td>
             </tr>
         `;
-    });
+    }
 
     return `
-        <table class="table table-bordered">
+        <table class="table table-bordered table-striped">
             ${tableRows}
         </table>
     `;
 }
 
-function clearInputFields() {
-    // Limpar os campos de "Definir Pacote"
-    document.getElementById('packagesPerMonth').value = '';
-    document.getElementById('packageSize').value = '';
+function setupPagination(packets, systemId) {
+    const totalPages = Math.ceil(packets.length / pageSize);
+    const pagination = document.getElementById(`pagination${systemId}`);
+    pagination.innerHTML = ''; // Limpar paginação
 
-    // Limpar os campos de "Definir Servidor"
-    document.getElementById('serverType').value = 'cpu';
-    document.getElementById('serverParameters').innerHTML = '';
-    document.getElementById('muResult').classList.add('d-none');
+    for (let i = 0; i < totalPages; i++) {
+        const pageItem = document.createElement('li');
+        pageItem.className = 'page-item';
+        pageItem.innerHTML = `
+            <a class="page-link" href="#" data-page="${i}">${i + 1}</a>
+        `;
+        pageItem.addEventListener('click', (e) => {
+            e.preventDefault();
+            const page = parseInt(e.target.dataset.page);
+            const packetsTable = generatePacketsTable(packets, page * pageSize);
+            document.getElementById(`packetsTable${systemId}`).innerHTML = packetsTable;
+        });
+        pagination.appendChild(pageItem);
+    }
 }
 
 function runSimulation() {
     const simulation = new clSF();
     simulation.Iniciar(lambda, mu);
     simulation.Simular(5000);
-    createResultComponent(simulation); // Adiciona o resultado da simulação na interface
+
+    const serverDetails = {
+        type: document.getElementById('serverType').value,
+        parameters: Object.fromEntries(
+            Array.from(document.querySelectorAll('#serverParameters input'))
+                .map(input => [input.previousElementSibling.textContent, input.value])
+        )
+    };
+
+    const stats = simulation.calculateStatistics(); // Chama a função diretamente
+    createResultComponent(simulation, serverDetails, stats);
 }
+
 
 document.getElementById('runSimulation').addEventListener('click', runSimulation);
