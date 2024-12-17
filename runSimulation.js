@@ -86,29 +86,46 @@ function generateRepairButton(id, lambda, mu) {
 }
 
 // Ajusta a frequência para U = 75%
+// Ajusta a frequência para garantir U <= 75%
 function adjustTo75(id, lambda) {
     const targetU = 0.75; // Utilização desejada
-    let newMu = lambda / targetU; // Cálculo inicial para μ
-    let safeMargin = 1.0001; // Margem de segurança para garantir U <= 0.75
-
     const system = simulations[id];
+    const serverType = system.serverDetails.type; // Tipo de servidor: CPU ou RAM
+    let adjustedFrequency = 0; // Frequência ajustada
+    let newMu = lambda / targetU; // Cálculo inicial para μ ajustado
 
-    // Iterar até garantir que U <= 0.75
-    let adjustedSimulation, newStats;
-    do {
-        newMu = newMu * safeMargin; // Aumenta μ com margem segura
-        adjustedSimulation = new clSF();
-        adjustedSimulation.Iniciar(lambda, parseFloat(newMu.toFixed(5)));
-        adjustedSimulation.Simular(5000);
-        newStats = adjustedSimulation.calculateStatistics();
-    } while (newStats.U > targetU);
+    // Ajusta para o tipo CPU
+    if (serverType === 'cpu') {
+        const threads = parseFloat(system.serverDetails.parameters['Número de Threads']) || 1;
+        const qpc = parseFloat(system.serverDetails.parameters['Quantidade de Dados por Ciclo (Bytes)']) || 1;
 
-    // Atualizar informações do servidor
+        // Calcular a nova frequência ajustada para CPU
+        adjustedFrequency = (newMu * system.serverDetails.parameters['Tamanho do Pacote (bits)']) /
+                            (threads * qpc * 1024);
+        system.serverDetails.parameters['Frequência Ajustada (GHz)'] = adjustedFrequency.toFixed(2);
+    }
+    // Ajusta para o tipo RAM
+    else if (serverType === 'ram') {
+        const bandwidth = parseFloat(system.serverDetails.parameters['Largura do Barramento (bits)']) || 1;
+
+        // Calcular a nova frequência ajustada para RAM
+        adjustedFrequency = (newMu * 8) / (bandwidth * 1024);
+        system.serverDetails.parameters['Frequência Ajustada (GHz)'] = adjustedFrequency.toFixed(2);
+    }
+
+    // Criar um novo sistema com os valores ajustados
+    const adjustedSimulation = new clSF();
+    adjustedSimulation.Iniciar(lambda, newMu);
+    adjustedSimulation.Simular(5000);
+
+    // Calcular as novas estatísticas
+    const newStats = adjustedSimulation.calculateStatistics();
     system.serverDetails.parameters['μ Ajustado'] = newMu.toFixed(5);
 
-    // Criar novo sistema com ajuste
+    // Criar novo resultado com valores ajustados
     createResultComponent(adjustedSimulation, system.serverDetails, newStats);
 }
+
 
 // Gera a tabela de estatísticas
 function generateStatsTable(stats) {
