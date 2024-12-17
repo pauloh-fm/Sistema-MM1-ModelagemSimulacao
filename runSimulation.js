@@ -1,49 +1,41 @@
 let systemId = 1; // ID incremental para cada sistema de fila criado
-const pageSize = 100; // Tamanho da página na tabela de pacotes
+const pageSize = 100; // Tamanho da página da tabela de pacotes
+const simulations = {}; // Armazena os dados de cada sistema criado
 
-function createResultComponent(simulation, serverDetails) {
+// Cria o componente do resultado do sistema de fila
+function createResultComponent(simulation, serverDetails, stats) {
     const resultsContainer = document.getElementById('resultsContainer');
 
-    // Calcular estatísticas
-    const stats = calculateStatistics(simulation);
-
-    // Determinar a cor do sistema com base em U
-    const utilization = stats.U; // U é a utilização
-    let cardClass = 'bg-light'; // Cor padrão
-    if (utilization < 0.60) {
-        cardClass = 'bg-success text-white'; // Verde claro
-    } else if (utilization >= 0.60 && utilization < 0.75) {
-        cardClass = 'bg-success'; // Verde mais vivo
-    } else if (utilization == 0.75) {
-        cardClass = 'bg-success bg-opacity-75'; // Verde ideal
-    } else {
-        cardClass = 'bg-danger'; // Vermelho (acima de 100%)
-    }
-
-    // Criar o componente principal do sistema
+    // Criar o card do sistema
     const systemDiv = document.createElement('div');
-    systemDiv.className = `card mb-3 ${cardClass}`;
+    systemDiv.className = `card mb-3`;
+    systemDiv.id = `systemDiv${systemId}`;
 
+    // Gerar flag de utilização e botão de ajuste
+    const flag = generateUtilizationFlag(stats.U);
+    const repairButton = stats.U > 0.75 ? generateRepairButton(systemId, stats.lambda, stats.mu) : '';
+
+    // Cabeçalho
     const systemHeader = document.createElement('div');
-    systemHeader.className = 'card-header';
+    systemHeader.className = 'card-header d-flex align-items-center justify-content-between';
     systemHeader.innerHTML = `
         <h5 class="mb-0">
-            Sistema de Fila (#${systemId})
-            <button class="btn btn-link float-end" type="button" data-bs-toggle="collapse" data-bs-target="#systemDetails${systemId}">
-                Expandir
-            </button>
+            Sistema de Fila (#${systemId}) ${flag} ${repairButton}
         </h5>
+        <button class="btn btn-link" type="button" data-bs-toggle="collapse" data-bs-target="#systemDetails${systemId}">
+            Expandir
+        </button>
     `;
     systemDiv.appendChild(systemHeader);
 
-    // Criar os detalhes da simulação
+    // Detalhes do sistema
     const systemDetails = document.createElement('div');
     systemDetails.className = 'collapse';
     systemDetails.id = `systemDetails${systemId}`;
 
-    const statsTable = generateStatsTable(stats); // Gerar tabela de estatísticas
-    const serverInfo = generateServerInfo(serverDetails); // Informações do servidor
-    const packetsTable = generatePacketsTable(simulation.P); // Gerar tabela de pacotes com paginação
+    const statsTable = generateStatsTable(stats);
+    const serverInfo = generateServerInfo(serverDetails);
+    const packetsTable = generatePacketsTable(simulation.P);
 
     systemDetails.innerHTML = `
         <div class="card-body">
@@ -62,25 +54,76 @@ function createResultComponent(simulation, serverDetails) {
     systemDiv.appendChild(systemDetails);
     resultsContainer.appendChild(systemDiv);
 
-    // Paginação da tabela de pacotes
     setupPagination(simulation.P, systemId);
-
-    systemId++; // Incrementar ID para o próximo sistema
-
-    // Limpar os campos de entrada
+    simulations[systemId] = { simulation, serverDetails, stats };
+    systemId++;
     clearInputFields();
 }
 
-function generateServerInfo(details) {
-    let info = `
-        <table class="table table-bordered">
-            <tr><th>Tipo de Servidor</th><td>${details.type}</td></tr>
+// Gera a flag de utilização com base em U
+function generateUtilizationFlag(U) {
+    let flagColor = 'bg-success';
+    let text = '<75%';
+
+    if (U === 0.75) {
+        flagColor = 'bg-warning';
+        text = '=75%';
+    } else if (U > 0.75) {
+        flagColor = 'bg-danger';
+        text = '>75%';
+    }
+
+    return `<span class="badge ${flagColor} ms-2">${text}</span>`;
+}
+
+// Gera botão para ajustar a frequência do servidor
+function generateRepairButton(id, lambda, mu) {
+    return `
+        <button class="btn btn-warning btn-sm ms-2" onclick="adjustTo75(${id}, ${lambda}, ${mu})">
+            <img src="repair-svgrepo-com.svg" alt="Reparar" style="width: 20px; height: 20px;">
+        </button>
     `;
+}
+
+// Ajusta a frequência para U = 75%
+function adjustTo75(id, lambda, mu) {
+    const newMu = (lambda / 0.75).toFixed(5); // Cálculo para U = 0.75
+    const system = simulations[id];
+    system.serverDetails.parameters['Frequência Ajustada (μ)'] = newMu;
+
+    // Cria um novo sistema com os valores ajustados
+    const newSimulation = new clSF();
+    newSimulation.Iniciar(lambda, parseFloat(newMu));
+    newSimulation.Simular(5000);
+
+    const newStats = newSimulation.calculateStatistics();
+    createResultComponent(newSimulation, system.serverDetails, newStats);
+}
+
+// Gera a tabela de estatísticas
+function generateStatsTable(stats) {
+    return `
+        <table class="table table-bordered">
+            <tr><th>λ (Taxa de Chegada)</th><td>${stats.lambda.toFixed(5)} pacotes/segundo</td></tr>
+            <tr><th>μ (Taxa de Serviço)</th><td>${stats.mu.toFixed(5)} pacotes/segundo</td></tr>
+            <tr><th>N (Pacotes Simulados)</th><td>${stats.N}</td></tr>
+            <tr><th>T (Duração)</th><td>${stats.T.toFixed(5)} segundos</td></tr>
+            <tr><th>U (Utilização)</th><td>${stats.U.toFixed(5)}</td></tr>
+            <tr><th>E[tsf] (Média Tempo no Sistema)</th><td>${stats.E[1].toFixed(5)} segundos</td></tr>
+            <tr><th>E[nf] (Média Pacotes na Fila)</th><td>${stats.E[2].toFixed(5)}</td></tr>
+            <tr><th>D[tsf] (Desvio Padrão Tempo no Sistema)</th><td>${stats.D[1].toFixed(5)}</td></tr>
+            <tr><th>D[nf] (Desvio Padrão Pacotes na Fila)</th><td>${stats.D[2].toFixed(5)}</td></tr>
+        </table>
+    `;
+}
+
+function generateServerInfo(details) {
+    let info = `<table class="table table-bordered">`;
+    info += `<tr><th>Tipo de Servidor</th><td>${details.type}</td></tr>`;
 
     for (const [key, value] of Object.entries(details.parameters)) {
         info += `<tr><th>${key}</th><td>${value}</td></tr>`;
     }
-
     info += `</table>`;
     return info;
 }
@@ -111,32 +154,31 @@ function generatePacketsTable(packets, start = 0) {
         `;
     }
 
-    return `
-        <table class="table table-bordered table-striped">
-            ${tableRows}
-        </table>
-    `;
+    return `<table class="table table-bordered table-striped">${tableRows}</table>`;
 }
 
 function setupPagination(packets, systemId) {
     const totalPages = Math.ceil(packets.length / pageSize);
     const pagination = document.getElementById(`pagination${systemId}`);
-    pagination.innerHTML = ''; // Limpar paginação
+    pagination.innerHTML = '';
 
     for (let i = 0; i < totalPages; i++) {
         const pageItem = document.createElement('li');
         pageItem.className = 'page-item';
-        pageItem.innerHTML = `
-            <a class="page-link" href="#" data-page="${i}">${i + 1}</a>
-        `;
+        pageItem.innerHTML = `<a class="page-link" href="#" data-page="${i}">${i + 1}</a>`;
         pageItem.addEventListener('click', (e) => {
             e.preventDefault();
             const page = parseInt(e.target.dataset.page);
-            const packetsTable = generatePacketsTable(packets, page * pageSize);
-            document.getElementById(`packetsTable${systemId}`).innerHTML = packetsTable;
+            document.getElementById(`packetsTable${systemId}`).innerHTML =
+                generatePacketsTable(packets, page * pageSize);
         });
         pagination.appendChild(pageItem);
     }
+}
+
+function clearInputFields() {
+    document.getElementById('serverParameters').innerHTML = '';
+    document.getElementById('muResult').classList.add('d-none');
 }
 
 function runSimulation() {
@@ -152,9 +194,8 @@ function runSimulation() {
         )
     };
 
-    const stats = simulation.calculateStatistics(); // Chama a função diretamente
+    const stats = simulation.calculateStatistics();
     createResultComponent(simulation, serverDetails, stats);
 }
-
 
 document.getElementById('runSimulation').addEventListener('click', runSimulation);
