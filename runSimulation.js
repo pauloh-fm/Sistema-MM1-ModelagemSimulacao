@@ -87,43 +87,55 @@ function generateRepairButton(id, lambda, mu) {
 
 // Ajusta a frequência para garantir U <= 75% com margem de segurança
 function adjustTo75(id, lambda) {
-    const targetU = 0.72; // Utilização desejada com margem de segurança
-    const system = simulations[id];
-    const serverType = system.serverDetails.type; // Tipo de servidor: CPU ou RAM
-    let adjustedFrequency = 0; // Frequência ajustada
-    let newMu = lambda / targetU; // Cálculo inicial para μ ajustado
+    const targetU = 0.72; // Utilização alvo
+    const system = simulations[id] || {}; // Evita erros se o sistema não existir ainda
+    const serverType = system.serverDetails?.type || document.getElementById('serverType').value;
+    const parameters = system.serverDetails?.parameters || Object.fromEntries(
+        Array.from(document.querySelectorAll('#serverParameters input')).map(input => {
+            return [input.previousElementSibling.textContent, parseFloat(input.value)];
+        })
+    );
 
-    // Ajusta para o tipo CPU
+    let adjustedMu = lambda / targetU; // μ ajustado para atingir o uso desejado
+    let adjustedFrequency = 0;
+
     if (serverType === 'cpu') {
-        const threads = parseFloat(system.serverDetails.parameters['Número de Threads']) || 1;
-        const qpc = parseFloat(system.serverDetails.parameters['Quantidade de Dados por Ciclo (Bytes)']) || 1;
+        const threads = parameters['Número de Threads'];
+        const qpc = parameters['Quantidade de Dados por Ciclo (Bytes)'];
+        const packetSizeBits = parseFloat(document.getElementById('packageSize').value) * 8;
 
-        // Calcular a nova frequência ajustada para CPU
-        adjustedFrequency = (newMu * system.serverDetails.parameters['Tamanho do Pacote (bits)']) /
-                            (threads * qpc * 1024);
-        system.serverDetails.parameters['Frequência Ajustada (GHz)'] = adjustedFrequency.toFixed(10);
+        if (threads > 0 && qpc > 0 && packetSizeBits > 0) {
+            adjustedFrequency = (adjustedMu * packetSizeBits) / (threads * qpc * 1024);
+            parameters['Frequência Ajustada (GHz)'] = adjustedFrequency.toFixed(5);
+        } else {
+            alert('Erro: Parâmetros inválidos para CPU.');
+            return;
+        }
+    } else if (serverType === 'ram') {
+        const bandwidth = parameters['Largura do Barramento (bits)'];
+
+        if (bandwidth > 0) {
+            adjustedFrequency = (adjustedMu * 8) / (bandwidth * 1024);
+            parameters['Frequência Ajustada (GHz)'] = adjustedFrequency.toFixed(5);
+        } else {
+            alert('Erro: Parâmetros inválidos para RAM.');
+            return;
+        }
+    } else {
+        alert('Erro: Tipo de servidor não reconhecido.');
+        return;
     }
-    // Ajusta para o tipo RAM
-    else if (serverType === 'ram') {
-        const bandwidth = parseFloat(system.serverDetails.parameters['Largura do Barramento (bits)']) || 1;
 
-        // Calcular a nova frequência ajustada para RAM
-        adjustedFrequency = (newMu * 8) / (bandwidth * 1024);
-        system.serverDetails.parameters['Frequência Ajustada (GHz)'] = adjustedFrequency.toFixed(10);
-    }
-
-    // Criar um novo sistema com os valores ajustados
     const adjustedSimulation = new clSF();
-    adjustedSimulation.Iniciar(lambda, newMu);
+    adjustedSimulation.Iniciar(lambda, adjustedMu);
     adjustedSimulation.Simular(5000);
 
-    // Calcular as novas estatísticas
     const newStats = adjustedSimulation.calculateStatistics();
-    system.serverDetails.parameters['μ Ajustado'] = newMu.toFixed(10);
+    parameters['μ Ajustado'] = adjustedMu.toFixed(10);
 
-    // Criar novo resultado com valores ajustados
-    createResultComponent(adjustedSimulation, system.serverDetails, newStats);
+    createResultComponent(adjustedSimulation, { type: serverType, parameters }, newStats);
 }
+
 
 // Gera a tabela de estatísticas
 function generateStatsTable(stats) {
