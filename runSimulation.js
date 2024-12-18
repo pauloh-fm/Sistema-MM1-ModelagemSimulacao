@@ -85,9 +85,9 @@ function generateRepairButton(id, lambda, mu) {
     `;
 }
 
-// Ajusta a frequência para garantir U <= 75%
+// Ajusta a frequência para garantir U <= 75% com margem de segurança
 function adjustTo75(id, lambda) {
-    const targetU = 0.75; // Utilização desejada
+    const targetU = 0.72; // Utilização desejada com margem de segurança
     const system = simulations[id];
     const serverType = system.serverDetails.type; // Tipo de servidor: CPU ou RAM
     let adjustedFrequency = 0; // Frequência ajustada
@@ -141,10 +141,10 @@ function generateStatsTable(stats) {
             <tr><th>N (Pacotes Simulados)</th><td>${stats.N}</td></tr>
             <tr><th>T (Duração)</th><td>${formatValue(stats.T)} segundos</td></tr>
             <tr><th>U (Utilização)</th><td>${formatValue(stats.U)}</td></tr>
-            <tr><th>E[tsf] (Média Tempo no Sistema)</th><td>${formatValue(stats.E[1])} segundos</td></tr>
-            <tr><th>E[nf] (Média Pacotes na Fila)</th><td>${formatValue(stats.E[2])}</td></tr>
-            <tr><th>D[tsf] (Desvio Padrão Tempo no Sistema)</th><td>${formatValue(stats.D[1])} segundos</td></tr>
-            <tr><th>D[nf] (Desvio Padrão Pacotes na Fila)</th><td>${formatValue(stats.D[2])}</td></tr>
+            <tr><th>E[tsf] (Média Tempo no Sistema)</th><td>${stats.E[1]} segundos</td></tr>
+            <tr><th>E[nf] (Média Pacotes na Fila)</th><td>${stats.E[2]}</td></tr>
+            <tr><th>D[tsf] (Desvio Padrão Tempo no Sistema)</th><td>${stats.D[1]} segundos</td></tr>
+            <tr><th>D[nf] (Desvio Padrão Pacotes na Fila)</th><td>${stats.D[2]}</td></tr>
         </table>
     `;
 }
