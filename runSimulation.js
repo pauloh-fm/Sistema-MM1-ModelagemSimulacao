@@ -13,7 +13,7 @@ function createResultComponent(simulation, serverDetails, stats) {
 
     // Gerar flag de utilização e botão de ajuste
     const flag = generateUtilizationFlag(stats.U);
-    const repairButton = stats.U > 0.75 ? generateRepairButton(systemId, stats.lambda, stats.mu) : '';
+    const repairButton = parseFloat(stats.U) > 0.75 ? generateRepairButton(systemId, stats.lambda, stats.mu) : '';
 
     // Cabeçalho
     const systemHeader = document.createElement('div');
@@ -65,10 +65,10 @@ function generateUtilizationFlag(U) {
     let flagColor = 'bg-success';
     let text = '<75%';
 
-    if (U.toFixed(10) === (0.75).toFixed(10)) {
+    if (parseFloat(U).toFixed(10) === (0.75).toFixed(10)) {
         flagColor = 'bg-warning';
         text = '=75%';
-    } else if (U > 0.75) {
+    } else if (parseFloat(U) > 0.75) {
         flagColor = 'bg-danger';
         text = '>75%';
     }
@@ -127,17 +127,24 @@ function adjustTo75(id, lambda) {
 
 // Gera a tabela de estatísticas
 function generateStatsTable(stats) {
+    const formatValue = (value) => {
+        if (parseFloat(value) < 1e-10) {
+            return '<1e-10';
+        }
+        return parseFloat(value).toFixed(10);
+    };
+
     return `
         <table class="table table-bordered">
-            <tr><th>λ (Taxa de Chegada)</th><td>${stats.lambda.toFixed(10)} pacotes/segundo</td></tr>
-            <tr><th>μ (Taxa de Serviço)</th><td>${stats.mu.toFixed(10)} pacotes/segundo</td></tr>
+            <tr><th>λ (Taxa de Chegada)</th><td>${formatValue(stats.lambda)} pacotes/segundo</td></tr>
+            <tr><th>μ (Taxa de Serviço)</th><td>${formatValue(stats.mu)} pacotes/segundo</td></tr>
             <tr><th>N (Pacotes Simulados)</th><td>${stats.N}</td></tr>
-            <tr><th>T (Duração)</th><td>${stats.T.toFixed(10)} segundos</td></tr>
-            <tr><th>U (Utilização)</th><td>${stats.U.toFixed(10)}</td></tr>
-            <tr><th>E[tsf] (Média Tempo no Sistema)</th><td>${stats.E[1].toFixed(10)} segundos</td></tr>
-            <tr><th>E[nf] (Média Pacotes na Fila)</th><td>${stats.E[2].toFixed(10)}</td></tr>
-            <tr><th>D[tsf] (Desvio Padrão Tempo no Sistema)</th><td>${stats.D[1].toFixed(10)} segundos</td></tr>
-            <tr><th>D[nf] (Desvio Padrão Pacotes na Fila)</th><td>${stats.D[2].toFixed(10)}</td></tr>
+            <tr><th>T (Duração)</th><td>${formatValue(stats.T)} segundos</td></tr>
+            <tr><th>U (Utilização)</th><td>${formatValue(stats.U)}</td></tr>
+            <tr><th>E[tsf] (Média Tempo no Sistema)</th><td>${formatValue(stats.E[1])} segundos</td></tr>
+            <tr><th>E[nf] (Média Pacotes na Fila)</th><td>${formatValue(stats.E[2])}</td></tr>
+            <tr><th>D[tsf] (Desvio Padrão Tempo no Sistema)</th><td>${formatValue(stats.D[1])} segundos</td></tr>
+            <tr><th>D[nf] (Desvio Padrão Pacotes na Fila)</th><td>${formatValue(stats.D[2])}</td></tr>
         </table>
     `;
 }
@@ -166,15 +173,22 @@ function generatePacketsTable(packets, start = 0) {
         </tr>
     `;
 
+    const formatValue = (value) => {
+        if (value < 1e-10) {
+            return '<1e-10';
+        }
+        return value.toFixed(10);
+    };
+
     for (let i = start; i < end; i++) {
         tableRows += `
             <tr>
                 <td>${i + 1}</td>
-                <td>${packets[i].ic.toFixed(10)}</td>
-                <td>${packets[i].cpf.toFixed(10)}</td>
-                <td>${packets[i].eps.toFixed(10)}</td>
-                <td>${packets[i].sps.toFixed(10)}</td>
-                <td>${packets[i].nf}</td>
+                <td>${i === 0 ? 0 : formatValue(packets[i].ic)}</td>
+                <td>${i === 0 ? 0 : formatValue(packets[i].cpf)}</td>
+                <td>${i === 0 ? 0 : formatValue(packets[i].eps)}</td>
+                <td>${i === 0 ? 0 : formatValue(packets[i].sps)}</td>
+                <td>${i === 0 ? 0 : packets[i].nf}</td>
             </tr>
         `;
     }
@@ -224,46 +238,3 @@ function runSimulation() {
 }
 
 document.getElementById('runSimulation').addEventListener('click', runSimulation);
-
-function calculateStatistics(simulation) {
-    const N = simulation.P.length;
-    const stats = {
-        lambda: simulation.lambda,
-        mu: simulation.mu,
-        N: N,
-        T: 0,
-        U: 0,
-        E: [0, 0, 0], // Médias: ts, tsf, nf
-        D: [0, 0, 0], // Desvios padrão
-    };
-
-    let Sx = [0, 0, 0]; // Somatórios
-    let Sxx = [0, 0, 0]; // Somatórios dos quadrados
-
-    for (let p = 0; p < N; p++) {
-        const ts = simulation.P[p].sps - simulation.P[p].eps; // Tempo de serviço
-        const tsf = simulation.P[p].sps - simulation.P[p].cpf; // Tempo no sistema
-        const nf = simulation.P[p].nf;
-
-        Sx[0] += ts;
-        Sxx[0] += ts * ts;
-        Sx[1] += tsf;
-        Sxx[1] += tsf * tsf;
-        Sx[2] += nf;
-        Sxx[2] += nf * nf;
-    }
-
-    stats.T = simulation.P[N - 1].sps - simulation.P[0].eps;
-    stats.U = Sx[0] / stats.T;
-
-    if (stats.U <= 0) {
-        stats.U = (1e-10).toFixed(10);
-    }
-
-    for (let i = 0; i < 3; i++) {
-        stats.E[i] = Sx[i] / N; // Média
-        stats.D[i] = Math.sqrt(Sxx[i] / N - stats.E[i] * stats.E[i]); // Desvio padrão
-    }
-
-    return stats;
-}
